@@ -1,0 +1,89 @@
+### lmcache Deployment and Service
+# Apply with: kubectl apply -f lmcache.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lmcache-controller
+  labels:
+    app: lmcache-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lmcache-controller
+  template:
+    metadata:
+      labels:
+        app: lmcache-controller
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: llm-infer.qifand.com/datacenter-cluster
+                operator: In
+                values:
+                - A
+      containers:
+        - name: lmcache-controller
+          image: harbor.qifand.com/llm-infer/vllm-openai:latest
+          imagePullPolicy: Always
+          env:
+            - name: LMCACHE_LOG_LEVEL
+              value: "DEBUG"
+            - name: PYTHONHASHSEED
+              value: "42"
+          command:
+            - /bin/sh
+            - '-c'
+          args: 
+            - |
+              lmcache_controller \
+                --host "0.0.0.0" \
+                --port "29000" \
+                --monitor-ports '{"pull": 28300, "reply": 28400}'
+          ports:
+            - name: endpoint
+              containerPort: 29000
+            - name: pull
+              containerPort: 28300
+            - name: reply
+              containerPort: 28400
+          livenessProbe:
+            tcpSocket:
+              port: 29000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            tcpSocket:
+              port: 29000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: lmcache-controller
+  labels:
+    app: lmcache-controller
+spec:
+  type: ClusterIP
+  selector:
+    app: lmcache-controller
+  ports:
+    - name: endpoint
+      port: 29000
+      targetPort: 29000
+      protocol: TCP
+    - name: pull
+      port: 28300
+      targetPort: 28300
+      protocol: TCP
+    - name: reply
+      port: 28400
+      targetPort: 28400
+      protocol: TCP

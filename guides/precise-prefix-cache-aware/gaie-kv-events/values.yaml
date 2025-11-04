@@ -3,9 +3,9 @@ inferenceExtension:
   image:
     # both downstream infernece-scheduler and upstream epp images can support precise KV Cache awareness based on the configurations here
     ###################
-    name: llm-d-inference-scheduler
-    hub: ghcr.io/llm-d
-    tag: v0.3.2
+    name: inference-scheduler
+    hub: harbor.qifand.com/llm-infer
+    tag: latest
     ###################
     # name: epp
     # hub: registry.k8s.io/gateway-api-inference-extension
@@ -30,6 +30,23 @@ inferenceExtension:
         secretKeyRef:
           name: llm-d-hf-token
           key: HF_TOKEN
+    - name: INFERENCE_DB_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: postgresql-credential
+          key: admin-password
+    - name: INFERENCE_DB_URL
+      value: "postgresql-cluster-rw.postgresql.svc.cluster.local"
+    - name: INFERENCE_DB_USERNAME
+      value: "admin"
+    - name: INFERENCE_DB_NAME
+      value: "logsdb"
+    - name: INFERENCE_DB_SCHEMA
+      value: "metrics"
+    - name: INFERENCE_DB_TABLE
+      value: "scheduler"
+    - name: INFERENCE_DB_PORT
+      value: "5432"
   flags:
     # Log verbosity
     - name: v

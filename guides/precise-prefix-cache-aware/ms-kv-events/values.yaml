@@ -1,14 +1,9 @@
 multinode: false
 
-modelArtifacts:
-  uri: "hf://Qwen/Qwen3-0.6B"
-  size: 20Gi
-  authSecretName: "llm-d-hf-token"
-  name: "Qwen/Qwen3-0.6B"
-
 routing:
   servicePort: 8000
   proxy:
+    enabled: false
     image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.3.0
     connector: nixlv2
     secure: false
@@ -22,6 +17,10 @@ routing:
   epp:
     create: false
 
+modelArtifacts:
+  name: "Qwen/Qwen3-14B-FP8"
+
+
 decode:
   create: true
   replicas: 2
@@ -31,23 +30,63 @@ decode:
       portName: "metrics"  # decode vLLM service port (from routing.proxy.targetPort)
       path: "/metrics"
       interval: "30s"
+  extraConfig:
+    initContainers:
+      - name: routing-proxy
+        args:
+          - --port=8000
+          - --vllm-port=8200
+          - --connector=nixlv2
+          - -v=5
+          - --secure-proxy=false
+        image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.3.0
+        imagePullPolicy: Always
+        ports:
+          - containerPort: 8000
+        resources:
+          requests:
+            ephemeral-storage: "100Mi"
+          limits:
+            ephemeral-storage: "100Mi"
+        restartPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+      - name: fetch-datacenter-label
+        image: docker.io/alpine/k8s:1.28.2
+        command:
+          - /bin/sh
+          - -c
+          - |
+            NODE_NAME="${POD_NODE_NAME:-}"
+            if [ -z "$NODE_NAME" ]; then
+              echo "" > /podinfo/datacenter_label
+              exit 0
+            fi
+            # use kubectl (rest client configured via serviceaccount) to read the node label
+            kubectl get node "$NODE_NAME" -o jsonpath='{.metadata.labels.llm-infer\.qifand\.com/datacenter-cluster}' > /podinfo/datacenter_label || echo "" > /podinfo/datacenter_label
+        env:
+          - name: POD_NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+        volumeMounts:
+          - name: podinfo
+            mountPath: /podinfo
   containers:
   - name: "vllm"
-    image: ghcr.io/llm-d/llm-d-cuda:v0.3.0
+    image: harbor.qifand.com/llm-infer/vllm-openai:latest
+    imagePullPolicy: Always
+    # securityContext:
+    #     privileged: true
+    #     capabilities:
+    #       add: ["IPC_LOCK", "NET_ADMIN"]
     modelCommand: custom
     command:
       - /bin/sh
       - '-c'
     args:
-      - |
-        vllm serve Qwen/Qwen3-0.6B \
-        --host 0.0.0.0 \
-        --port 8200 \
-        --block-size 64 \
-        --prefix-caching-hash-algo sha256_cbor \
-        --enforce-eager \
-        --kv-transfer-config '{"kv_connector":"NixlConnector", "kv_role":"kv_both"}' \
-        --kv-events-config "{\"enable_kv_cache_events\":true,\"publisher\":\"zmq\",\"endpoint\":\"tcp://gaie-${GAIE_RELEASE_NAME_POSTFIX}-epp.${NAMESPACE}.svc.cluster.local:5557\",\"topic\":\"kv@${POD_IP}@Qwen/Qwen3-0.6B\"}"
+      - /usr/local/bin/run.sh
     env:
       - name: GAIE_RELEASE_NAME_POSTFIX # index 0 matters because of set in helmfile
       - name: NAMESPACE
@@ -64,7 +103,7 @@ decode:
       - name: CUDA_VISIBLE_DEVICES
         value: "0"
       - name: UCX_TLS
-        value: "cuda_ipc,cuda_copy,tcp"
+        value: "tcp"
       - name: VLLM_NIXL_SIDE_CHANNEL_HOST
         valueFrom:
           fieldRef:
@@ -73,6 +112,62 @@ decode:
         value: "5557"
       - name: VLLM_LOGGING_LEVEL
         value: DEBUG
+      - name: INFERENCE_DB_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: postgresql-credential
+            key: admin-password
+      - name: INFERENCE_DB_URL
+        value: "postgresql-cluster-rw.postgresql.svc.cluster.local"
+      - name: INFERENCE_DB_USERNAME
+        value: "admin"
+      - name: INFERENCE_DB_NAME
+        value: "logsdb"
+      - name: INFERENCE_DB_SCHEMA
+        value: "metrics"
+      - name: INFERENCE_DB_TABLE
+        value: "inference-instance"
+      - name: INFERENCE_DB_PORT
+        value: "5432"
+      - name: LMCACHE_CONTROLLER_ADDR_PULL
+        value: "lmcache-controller.{{ .Release.Namespace }}.svc.cluster.local:28300"
+      - name: LMCACHE_CONTROLLER_ADDR_REPLY
+        value: "lmcache-controller.{{ .Release.Namespace }}.svc.cluster.local:28400"
+      - name: KV_CONNECTOR
+        # value: "NixlConnector"
+        value: "LMCacheConnectorV1"
+      - name: HF_HOME
+        value: "/model-cache"
+      - name: NCCL_P2P_DISABLE # solve vllm hang issue in some environments
+        value: "1"
+      - name: HF_MODEL
+        value: "Qwen/Qwen3-14B-FP8"
+      - name: LMCACHE_ENABLE_CONTROLLER
+        value: "false"
+      - name: LMCACHE_ENABLE_P2P
+        value: "false"
+      - name: LMCACHE_ENABLE_ASYNC_LOADING
+        value: "false"
+      - name: LMCACHE_CHUNK_SIZE
+        value: "64"
+      - name: LMCACHE_MAX_LOCAL_CPU_SIZE
+        value: "5.0" # Gi
+      - name: LMCACHE_USE_EXPERIMENTAL
+        value: "true"
+      - name: LMCACHE_LOCAL_DISK
+        value: "file:///lmcache"
+      - name: LMCACHE_MAX_LOCAL_DISK_SIZE
+        value: "256.0" # Gi
+      - name: MAX_MODEL_LEN
+        value: "4096"
+      # - name: QUANTIZATION
+      #   value: "fp8"
+      # - name: KV_CACHE_DTYPE
+      #   value: "fp8_e4m3"
+      - name: MAX_NUM_SEQS
+        value: "4"
+      - name: GPU_MEMORY_UTILIZATION
+        value: "0.45"
     ports:
       - containerPort: 5557
         protocol: TCP
@@ -81,21 +176,63 @@ decode:
         protocol: TCP
     resources:
       limits:
-        nvidia.com/gpu: "1"
+        ephemeral-storage: "50Gi"
+        memory: "32Gi"
+        nvidia.com/gpu: "0.5"
       requests:
-        nvidia.com/gpu: "1"
-    mountModelVolume: true
+        ephemeral-storage: "50Gi"
+        memory: "32Gi"
+        nvidia.com/gpu: "0.5"
+    # disable chart's built-in model volume creation so we can mount the existing PVC
+    mountModelVolume: false
     volumeMounts:
     - name: metrics-volume
       mountPath: /.config
     - name: torch-compile-cache
       mountPath: /.cache
+    - name: podinfo
+      mountPath: /podinfo
+    - name: model-storage-hostpath
+      mountPath: /model-cache
+    - name: lmcache-storage-hostpath
+      mountPath: /lmcache
   volumes:
   - name: metrics-volume
     emptyDir: {}
   - name: torch-compile-cache
     emptyDir: {}
-
+  - name: podinfo
+    emptyDir: {}
+  - name: model-storage-hostpath
+    hostPath:
+      path: /mnt/model-cache
+      type: Directory
+  - name: lmcache-storage-hostpath
+    hostPath:
+      path: /mnt/lmcache
+      type: Directory
 # PD disabled in this example
 prefill:
   create: false
+
+extraObjects:
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      name: "{{ include \"llm-d-modelservice.fullname\" . }}-node-reader"
+    rules:
+      - apiGroups: [""]
+        resources: ["nodes"]
+        verbs: ["get", "list"]
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: "{{ include \"llm-d-modelservice.fullname\" . }}-node-reader-binding"
+    subjects:
+      - kind: ServiceAccount
+        name: "{{ include \"llm-d-modelservice.pdServiceAccountName\" . }}"
+        namespace: "{{ .Release.Namespace }}"
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: "{{ include \"llm-d-modelservice.fullname\" . }}-node-reader"
