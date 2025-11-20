@@ -12,6 +12,13 @@ inferenceExtension:
     # tag: v1.0.1
     ###################
     pullPolicy: Always
+  resources:
+    limits:
+      cpu: "48"
+      memory: "40Gi"
+    requests:
+      cpu: "48"
+      memory: "40Gi"
   extProcPort: 9002
   # ZMQ port for `kvevents.Pool` (KVEvents subscriber)
   extraContainerPorts:
@@ -23,6 +30,8 @@ inferenceExtension:
       port: 5557
       targetPort: 5557
       protocol: TCP
+  nodeSelector:
+    "llm-infer.qifand.com/datacenter-cluster": "A"
   # huggingface token for tokenizer
   env:
     - name: HF_TOKEN
@@ -58,25 +67,25 @@ inferenceExtension:
       apiVersion: inference.networking.x-k8s.io/v1alpha1
       kind: EndpointPickerConfig
       plugins:
-        - type: single-profile-handler
-        - type: precise-prefix-cache-scorer
-          parameters:
-            indexerConfig:
-              tokenProcessorConfig:
-                blockSize: 64   
-                hashSeed: "42"
-        - type: kv-cache-utilization-scorer
+        # - type: single-profile-handler
+        # - type: precise-prefix-cache-scorer
+        #   parameters:
+        #     indexerConfig:
+        #       tokenProcessorConfig:
+        #         blockSize: 64   
+        #         hashSeed: "42"
+        # - type: kv-cache-utilization-scorer
         - type: queue-scorer
         - type: max-score-picker
       schedulingProfiles:
         - name: default
           plugins:
-            - pluginRef: precise-prefix-cache-scorer
-              weight: 3.0
-            - pluginRef: kv-cache-utilization-scorer
-              weight: 2.0
+            # - pluginRef: precise-prefix-cache-scorer
+            #   weight: 3.0
+            # - pluginRef: kv-cache-utilization-scorer
+            #   weight: 2.0
             - pluginRef: queue-scorer
-              weight: 2.0
+              weight: 1.0
             - pluginRef: max-score-picker
 
   # Monitoring configuration for EPP

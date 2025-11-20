@@ -1,0 +1,515 @@
+# yaml-language-server: $schema=values.schema.json
+# This values.yaml file is a default values file. It can be overridden using another.
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Common configuration values
+common: {}
+
+# -- String to fully override common.names.fullname
+fullnameOverride: ""
+
+# schedulerName -- Name of the scheduler to use for scheduling model pods
+# schedulerName: default-scheduler
+
+modelArtifacts:
+  # name is the value of the model parameter in OpenAI requests
+  # Required
+  name: random/model
+  # model URI. One of:
+  #   hf://model/name - model as defined on Hugging Face
+  #   pvc://pvc_name/path/to/model - model on existing persistant storage volume
+  #   oci:// not yet supported
+  uri: "hf://{{ .Values.modelArtifacts.name }}"
+  # size of volume to create to hold the model
+  size: 5Mi
+  # name of secret containing credentials for accessing the model (e.g., HF_TOKEN)
+  authSecretName: ""
+  # location where model volume will be mounted (used when mountModelVolume: true)
+  mountPath: /model-cache
+
+# When true, a LeaderWorkerSet is used instead of a Deployment
+multinode: false
+
+# Global accelerator configuration
+# Supported types: nvidia, intel, amd, google
+accelerator:
+  # Type of accelerator to use
+  type: nvidia
+  # Resource names for different accelerator types
+  resources:
+    nvidia: "nvidia.com/gpu"
+    intel: "gpu.intel.com/i915"
+    amd: "amd.com/gpu"
+    google: "google.com/tpu"
+  # Environment variables specific to accelerator types
+  env:
+    intel:
+      - name: VLLM_USE_V1
+        value: "1"
+      - name: TORCH_LLM_ALLREDUCE
+        value: "1"
+      - name: VLLM_WORKER_MULTIPROC_METHOD
+        value: "spawn"
+
+# Describe routing requirements. In addition to service level routing (OpenAI model name, service port)
+# also describes elements for Gateway API Inference Extension configuration
+routing:
+  # Deprecated
+  # modelName: random/modelId
+  # port the inference engine (vLLM) listens
+  # when a sidecar (proxy) is used it will listen on this port and forward to VLLM on proxy.targetPort
+  servicePort: 8000
+
+  # @schema
+  # additionalProperties: true
+  # @schema
+  # Configuration of VLLM routing sidecar
+  # cf. https://github.com/llm-d/llm-d-routing-sidecar/
+  proxy:
+    enabled: true
+    image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.2.0
+    imagePullPolicy: Always
+    # target port on which VLLM should listen
+    targetPort: 8200
+    # Specify a conenctor. For example, `nixl`, `nixlv2`
+    connector: nixlv2
+
+    # Boolean: adds the `--secure-proxy` flag to the routingSidecar with your chosen value.  Arg is ommitted by default for compatability with legacy sidecar images.
+    secure: false
+
+    # Boolean: whether to use TLS when sending requests to prefillers. Arg is ommitted by default for compatability with legacy sidecar images.
+    # prefillerUseTLS: true
+
+    # The path to the certificate for secure proxy.  Arg is ommitted by default for compatability with legacy sidecar images.
+    # certPath: "/certs"
+
+    # Overwrite the verbosity of logging in the sidecar (defaults to 5)
+    # debugLevel: 5
+
+  # Reference to parent gateway
+  # cf. https://gateway-api.sigs.k8s.io/api-types/gateway/
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: inference-gateway
+    namespace: "{{ .Release.Namespace }}"
+
+  # @schema
+  # additionalProperties: true
+  # @schema
+  # Configuration of InferencePool
+  # cf. https://gateway-api-inference-extension.sigs.k8s.io/reference/spec/#inferencepool
+
+
+  # @schema
+  # additionalProperties: true
+  # @schema
+  inferencePool:
+    create: true
+    # which API group to use for the inference pool, options: ["inference.networking.x-k8s.io", "inference.networking.k8s.io"]. Defaults to: "inference.networking.x-k8s.io" until gateway provider support for new API
+    # @schema
+    # default: "inference.networking.x-k8s.io"
+    # enum: ["inference.networking.x-k8s.io","inference.networking.k8s.io"]
+    # @schema
+    apiGroup: "inference.networking.x-k8s.io"
+    # name: OVERRIDE_NAME
+    # to use a different epp service than the one created when routing.epp.create: true
+    # extensionRef:
+
+  # @schema
+  # additionalProperties: true
+  # @schema
+  inferenceModel:
+    create: false
+    # Criticality options: ["Critical", "Standard", "Sheddable"], see: https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/main/config/crd/bases/inference.networking.x-k8s.io_inferencemodels.yaml#L70-L84
+    criticality: Critical
+    # Name override for the inference
+    # name: "some-override"
+
+  # @schema
+  # additionalProperties: true
+  # @schema
+  # Configuration of HTTPRoute (mapping of requests through gateway to InferencePool)
+  # cf. https://gateway-api.sigs.k8s.io/api-types/httproute/
+  httpRoute:
+    create: true
+    # when specifiying rules it will overwrite the entire rules block (matches included)
+    # rules:
+    #   - backendRefs:
+    #       - group: inference.networking.x-k8s.io
+    #         kind: InferencePool
+    #         name: inference-pool-name
+    #         port: 8000
+    #         weight: 1
+    #     matches:
+    #       - path:
+    #           type: PathPrefix
+    #           value: /
+    # when specifiying matches and not rules, it will use the default backendRef block but overwrite just the matches section of a single rule
+    matches:
+      - path:
+          type: PathPrefix
+          value: /
+        # example over-riding matches
+        # @schema
+        # items:
+        #   type: object
+        # @schema
+        headers: []
+        # - name: x-model-name
+        #   type: Exact
+        #   value: facebook/opt-125m
+
+    # Allow people to opt out of timeouts by unsetting the default value.
+    # They are set to 0s which in most situations defaults to the providers max timeout.
+    timeouts:
+      backendRequest: 0s
+      request: 0s
+
+  # @schema
+  # additionalProperties: true
+  # @schema
+  # Configuration of EPP (endpoint picker)
+  # cf. https://github.com/llm-d/llm-d-inference-scheduler
+  epp:
+    create: true
+    service:
+      type: ClusterIP
+      port: 9002
+      targetPort: 9002
+      appProtocol: http2
+    image: ghcr.io/llm-d/llm-d-inference-scheduler:v0.2.1
+    replicas: 1
+    debugLevel: 4
+    disableReadinessProbe: false
+    disableLivenessProbe: false
+    # To override the name of the inferencepool
+    # inferencePool:
+    # -- Default environment variables for endpoint picker, use `defaultEnvVarsOverride` to override default behavior by defining the same variable again.
+    # Ref: https://github.com/llm-d/llm-d-inference-scheduler/blob/main/docs/architecture.md#scorers--configuration
+
+    # The name of the plugin file to use. Some default files are provided to you: default-config.yaml, prefix-cache-tracking-config.yaml,
+    # prefix-estimate-config.yaml, default-pd-config.yaml, or you may define a custom config below and select it with the pluginsConfigFile field.
+    pluginsConfigFile: "default-config.yaml"
+
+    # Adding a custom plugin config via the pluginsCustomConfig field. Inside there should be an entry to a confimap of file containing the `EndpointPickerConfig`
+    # pluginsCustomConfig:
+    #   custom-plugins.yaml: |
+    #     apiVersion: inference.networking.x-k8s.io/v1alpha1
+    #     kind: EndpointPickerConfig
+    #     plugins:
+    #     - type: custom-scorer
+    #       parameters:
+    #         custom-threshold: 64
+    #     - type: max-score-picker
+    #     - type: single-profile-handler
+    #     schedulingProfiles:
+    #     - name: default
+    #       plugins:
+    #       - pluginRef: custom-scorer
+    #         weight: 1
+    #       - pluginRef: max-score-picker
+    #         weight: 1
+
+
+    # @schema
+    # items:
+    #   $ref: https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master/_definitions.json#/definitions/io.k8s.api.core.v1.EnvVar
+    # @schema
+    env: []
+      # Include any Environment variables to epp here, or configure scorers for a legacy epp image, ex:
+    # - name: ENABLE_KVCACHE_AWARE_SCORER
+    #   value: "false"
+
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Decode pod configuration
+decode:
+  create: true
+  autoscaling:
+    enabled: false
+
+  replicas: 1
+  # schedulerName -- Name of the scheduler to use for scheduling decode pods (overrides global schedulerName)
+  # schedulerName: decode-scheduler
+
+  # @schema
+  # type: array
+  # items:
+  #   type: object
+  #   additionalProperties: true
+  # @schema
+  containers:
+  - name: "vllm"
+    image: "ghcr.io/llm-d/llm-d-inference-sim:v0.3.0"
+    # type of command:
+    #   vllmServe - modelservice will add the command vllm serve to the container
+    #   imageDefault - no command will be added; the default command defined in the image will be used
+    #   custom - use user provided "command"
+    modelCommand: imageDefault
+    # Required when modelCommand is "custom"
+    command: []
+    # @schema
+    # items:
+    #   type: string
+    # @schema
+    args: []
+    # @schema
+    # items:
+    #   $ref: https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master/_definitions.json#/definitions/io.k8s.api.core.v1.EnvVar
+    # @schema
+    env: []
+    imagePullPolicy: ""
+    # list of ports exposed by the container
+    # @schema
+    # items:
+    #   $ref: https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master/_definitions.json#/definitions/io.k8s.api.core.v1.ContainerPort
+    # @schema
+    ports: []
+    #   - containerPort: 8200  # matches routing.proxy.targetPort, set for metrics scraping with  monitoring.podmonitor.enabled true
+    #     name: metrics
+    #     protocol: TCP
+    # @schema
+    # $ref: https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master/_definitions.json#/definitions/io.k8s.api.core.v1.ResourceRequirements
+    # @schema
+    resources:
+      # @schema
+      # additionalProperties: true
+      # @schema
+      limits: {}
+      # @schema
+      # additionalProperties: true
+      # @schema
+      requests: {}
+    # when set, a volumeMount (and volume) is created for model storage
+    mountModelVolume: true
+    # @schema
+    # type: array
+    # items:
+    #   type: object
+    #   additionalProperties: true
+    # @schema
+    volumeMounts:
+    - name: metrics-volume
+      mountPath: /.config
+  # @schema
+  # type: array
+  # items:
+  #   type: object
+  #   additionalProperties: true
+  # @schema
+  volumes:
+  - name: metrics-volume
+    emptyDir: {}
+
+  # hostIPC -- Boolean: Use the host's ipc namespace.
+  # -- Not set by default.
+  # -- Only an option for LWS (multinode) See: https://github.com/kubernetes-sigs/lws/blob/main/config/crd/bases/leaderworkerset.x-k8s.io_leaderworkersets.yaml#L12196.
+  # hostIPC: false
+
+  # hostPID -- Boolean: Use the host's pid namespace.
+  # -- Not set by default.
+  # -- Only an option for LWS (multinode) See: https://github.com/kubernetes-sigs/lws/blob/main/config/crd/bases/leaderworkerset.x-k8s.io_leaderworkersets.yaml#L12207.
+  # hostPID: false
+
+  # subGroupPolicy -- object: SubGroupPolicy describes the policy that will be applied when creating subgroups in each replica.
+  # -- Not set by default
+  # -- Only an option for LWS (multinode) See: https://github.com/kubernetes-sigs/lws/blob/main/config/crd/bases/leaderworkerset.x-k8s.io_leaderworkersets.yaml#L8207
+  # subGroupPolicy:
+  #   subGroupSize: 8
+
+  # subGroupExclusiveToplogy -- Boolean: Should the `subgroup-exclusive-topology` annotation be added to the LWS
+  # -- Not set by default
+  # -- Only an option for LWS (multinode)
+  # subGroupExclusiveToplogy: true
+
+  # XPU-specific node affinity
+  acceleratorTypes:
+    labelKey: ""
+    # @schema
+    # items:
+    #   type: string
+    # @schema
+    labelValues: []
+
+  # @schema
+  # additionalProperties: true
+  # @schema
+  # Monitoring configuration for decode pods
+  monitoring:
+    # PodMonitor configuration for Prometheus Operator
+    podmonitor:
+      # enabled -- Create PodMonitor resource for decode deployment
+      enabled: false
+      # portName -- Port name to scrape metrics from (must match container port name)
+      portName: "metrics"
+      # path -- HTTP path to scrape metrics from
+      path: "/metrics"
+      # interval -- Interval at which metrics should be scraped
+      interval: "30s"
+      # scrapeTimeout -- Timeout after which the scrape is ended
+      # scrapeTimeout: "10s"
+      # labels -- Additional labels to be added to the PodMonitor
+      labels: {}
+      # annotations -- Additional annotations to be added to the PodMonitor
+      annotations: {}
+      # relabelings -- RelabelConfigs to apply to samples before scraping
+      relabelings: []
+      # metricRelabelings -- MetricRelabelConfigs to apply to samples before ingestion
+      metricRelabelings: []
+      # namespaceSelector -- Selector to select which namespaces the Endpoints objects are discovered from
+      # namespaceSelector: {}
+
+# @schema
+# additionalProperties: true
+# @schema
+# Prefill pod configuation
+prefill:
+  create: true
+  autoscaling:
+    enabled: false
+
+  replicas: 0
+  # schedulerName -- Name of the scheduler to use for scheduling prefill pods (overrides global schedulerName)
+  # schedulerName: prefill-scheduler
+
+  # @schema
+  # type: array
+  # items:
+  #   type: object
+  #   additionalProperties: true
+  # @schema
+  containers:
+  - name: "vllm"
+    image: "ghcr.io/llm-d/llm-d-inference-sim:v0.3.0"
+    modelCommand: imageDefault
+    mountModelVolume: true
+    # @schema
+    # items:
+    #   type: string
+    # @schema
+    args: []
+    # @schema
+    # items:
+    #   $ref: https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master/_definitions.json#/definitions/io.k8s.api.core.v1.EnvVar
+    # @schema
+    env: []
+    imagePullPolicy: ""
+    command: []
+    # list of ports exposed by the container
+    # @schema
+    # items:
+    #   $ref: https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master/_definitions.json#/definitions/io.k8s.api.core.v1.ContainerPort
+    # @schema
+    ports: []
+    #   - containerPort: 8000  # matches routing.servicePort, set for metrics scraping with  monitoring.podmonitor.enabled true
+    #     name: metrics
+    #     protocol: TCP
+    # @schema
+    # $ref: https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master/_definitions.json#/definitions/io.k8s.api.core.v1.ResourceRequirements
+    # @schema
+    resources:
+      # @schema
+      # additionalProperties: true
+      # @schema
+      limits: {}
+      # @schema
+      # additionalProperties: true
+      # @schema
+      requests: {}
+    # @schema
+    # type: array
+    # items:
+    #   type: object
+    #   additionalProperties: true
+    # @schema
+    volumeMounts:
+    - name: metrics-volume
+      mountPath: /.config
+  # @schema
+  # type: array
+  # items:
+  #   type: object
+  #   additionalProperties: true
+  # @schema
+  volumes:
+  - name: metrics-volume
+    emptyDir: {}
+
+  # hostIPC -- Boolean: Use the host's ipc namespace.
+  # -- Not set by default.
+  # -- Only an option for LWS (multinode) See: https://github.com/kubernetes-sigs/lws/blob/main/config/crd/bases/leaderworkerset.x-k8s.io_leaderworkersets.yaml#L12196.
+  # hostIPC: false
+
+  # hostPID -- Boolean: Use the host's pid namespace.
+  # -- Not set by default.
+  # -- Only an option for LWS (multinode) See: https://github.com/kubernetes-sigs/lws/blob/main/config/crd/bases/leaderworkerset.x-k8s.io_leaderworkersets.yaml#L12207.
+  # hostPID: false
+
+  # subGroupPolicy -- object: SubGroupPolicy describes the policy that will be applied when creating subgroups in each replica.
+  # -- Not set by default
+  # -- Only an option for LWS (multinode) See: https://github.com/kubernetes-sigs/lws/blob/main/config/crd/bases/leaderworkerset.x-k8s.io_leaderworkersets.yaml#L8207
+  # subGroupPolicy:
+  #   subGroupSize: 8
+
+  # subGroupExclusiveToplogy -- Boolean: Should the `subgroup-exclusive-topology` annotation be added to the LWS
+  # -- Not set by default
+  # -- Only an option for LWS (multinode)
+  # subGroupExclusiveToplogy: true
+
+  # XPU-specific node affinity
+  acceleratorTypes:
+    labelKey: ""
+    # @schema
+    # items:
+    #   type: string
+    # @schema
+    labelValues: []
+
+  # @schema
+  # additionalProperties: true
+  # @schema
+  # Monitoring configuration for prefill pods
+  monitoring:
+    # PodMonitor configuration for Prometheus Operator
+    podmonitor:
+      # enabled -- Create PodMonitor resource for prefill deployment
+      enabled: false
+      # portName -- Port name to scrape metrics from (must match container port name)
+      portName: "metrics"
+      # path -- HTTP path to scrape metrics from
+      path: "/metrics"
+      # interval -- Interval at which metrics should be scraped
+      interval: "30s"
+      # scrapeTimeout -- Timeout after which the scrape is ended
+      # scrapeTimeout: "10s"
+      # labels -- Additional labels to be added to the PodMonitor
+      labels: {}
+      # annotations -- Additional annotations to be added to the PodMonitor
+      annotations: {}
+      # relabelings -- RelabelConfigs to apply to samples before scraping
+      relabelings: []
+      # metricRelabelings -- MetricRelabelConfigs to apply to samples before ingestion
+      metricRelabelings: []
+      # namespaceSelector -- Selector to select which namespaces the Endpoints objects are discovered from
+      # namespaceSelector: {}
+
+
+# @schema
+# items:
+#   type: object
+# @schema
+# -- Extra objects to be deployed alongside the main application
+extraObjects: []
+# Example:
+# extraObjects:
+#   - apiVersion: v1
+#     kind: ConfigMap
+#     metadata:
+#       name: example-config
+#     data:
+#       key: value
