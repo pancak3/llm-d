@@ -19,11 +19,18 @@ metadata:
 data:
   deployment: |
     spec:
+      {{- if .Values.gateway.gatewayParameters.replicaCount }}
+      replicas: {{ .Values.gateway.gatewayParameters.replicaCount }}
+      {{- end }}
       template:
         spec:
           {{- if .Values.gateway.gatewayParameters.nodeSelector }}
           nodeSelector:
             {{- include "common.tplvalues.render" ( dict "value" .Values.gateway.gatewayParameters.nodeSelector "context" $ ) | nindent 12 }}
+          {{- end }}
+          {{- if .Values.gateway.gatewayParameters.affinity }}
+          affinity:
+            {{- include "common.tplvalues.render" ( dict "value" .Values.gateway.gatewayParameters.affinity "context" $ ) | nindent 12 }}
           {{- end }}
           containers:
           - name: istio-proxy

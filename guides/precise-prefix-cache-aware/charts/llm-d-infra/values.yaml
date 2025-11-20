@@ -96,14 +96,20 @@ gateway:
     # <br /> Ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container
     resources:
       limits:
-        cpu: "2"
-        memory: 1Gi
+        cpu: "4"
+        memory: "8Gi"
       requests:
-        cpu: 100m
-        memory: 128Mi
+        cpu: "4"
+        memory: "8Gi"
 
     # -- Schedule gateway pods on nodes matching these labels
     nodeSelector: {}
+
+    # -- (Optional) Apply custom affinity rules to gateway pods
+    affinity: {}
+
+    # -- Override the number of Istio gateway pods (leave null to accept class defaults)
+    replicaCount: 6
 
   # @schema
   # additionalProperties: true
@@ -199,9 +205,13 @@ gateway:
   #           maximum: 32767
   # @schema
   service:
-    type: ClusterIP
-    # ports:
-    #   - port: 80
+    # Expose the Istio-managed gateway via a load balancer to avoid sending all traffic to a single node.
+    type: NodePort
+    ports:
+      - port: 80
+        nodePort: 30789
+      - port: 15021
+        nodePort: 31345
 
 # -- Ingress configuration
 # @default -- See below

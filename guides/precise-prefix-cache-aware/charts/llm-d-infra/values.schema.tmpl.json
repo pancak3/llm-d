@@ -161,6 +161,19 @@
               "title": "nodeSelector",
               "type": "object"
             },
+            "affinity": {
+              "description": "Apply custom affinity rules to gateway pods",
+              "required": [],
+              "title": "affinity",
+              "type": "object"
+            },
+            "replicaCount": {
+              "description": "Override the desired number of Istio gateway pods (null keeps the class default)",
+              "minimum": 1,
+              "required": [],
+              "title": "replicaCount",
+              "type": ["integer", "null"]
+            },
             "resources": {
               "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master/_definitions.json#/definitions/io.k8s.api.core.v1.ResourceRequirements",
               "description": "Resource requests/limits \u003cbr /\u003e Ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container",

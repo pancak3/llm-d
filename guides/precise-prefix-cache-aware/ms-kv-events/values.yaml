@@ -77,6 +77,12 @@ decode:
             fi
             # use kubectl (rest client configured via serviceaccount) to read the node label
             kubectl get node "$NODE_NAME" -o jsonpath='{.metadata.labels.llm-infer\.qifand\.com/datacenter-cluster}' > /podinfo/datacenter_label || echo "" > /podinfo/datacenter_label
+            # get the k8s internal ip
+            INTERNAL_IP=$(kubectl get node "$NODE_NAME" -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
+            echo "$INTERNAL_IP" > /nodeinfo/internal_ip
+            # get the svc nodeport
+            SVC_NODE_PORT=$(kubectl get svc infra-kv-events-inference-gateway-istio -o jsonpath='{.spec.ports[?(@.port==80)].nodePort}')
+            echo "$SVC_NODE_PORT" > /nodeinfo/svc_node_port
         env:
           - name: POD_NODE_NAME
             valueFrom:
@@ -85,6 +91,8 @@ decode:
         volumeMounts:
           - name: podinfo
             mountPath: /podinfo
+          - name: nodeinfo
+            mountPath: /nodeinfo
   containers:
   - name: "vllm"
     image: harbor.qifand.com/llm-infer/vllm-openai:latest
@@ -216,6 +224,8 @@ decode:
       mountPath: /.cache
     - name: podinfo
       mountPath: /podinfo
+    - name: nodeinfo
+      mountPath: /nodeinfo
     - name: model-storage-hostpath
       mountPath: /model-cache
     - name: lmcache-storage-hostpath
@@ -228,6 +238,8 @@ decode:
   - name: torch-compile-cache
     emptyDir: {}
   - name: podinfo
+    emptyDir: {}
+  - name: nodeinfo
     emptyDir: {}
   - name: model-storage-hostpath
     hostPath:
@@ -252,7 +264,7 @@ extraObjects:
       name: "{{ include \"llm-d-modelservice.fullname\" . }}-node-reader"
     rules:
       - apiGroups: [""]
-        resources: ["nodes"]
+        resources: ["nodes", "services"]
         verbs: ["get", "list"]
   - apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding

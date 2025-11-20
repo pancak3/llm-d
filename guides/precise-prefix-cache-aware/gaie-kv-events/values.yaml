@@ -31,7 +31,7 @@ inferenceExtension:
       targetPort: 5557
       protocol: TCP
   nodeSelector:
-    "llm-infer.qifand.com/datacenter-cluster": "A"
+    "llm-infer.qifand.com/datacenter-cluster": "F"
   # huggingface token for tokenizer
   env:
     - name: HF_TOKEN

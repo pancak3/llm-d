@@ -161,6 +161,22 @@
                             "title": "nodeSelector",
                             "type": "object"
                         },
+                        "affinity": {
+                            "description": "Apply custom affinity rules to gateway pods",
+                            "required": [],
+                            "title": "affinity",
+                            "type": "object"
+                        },
+                        "replicaCount": {
+                            "description": "Override the desired number of Istio gateway pods (null keeps the class default)",
+                            "minimum": 1,
+                            "required": [],
+                            "title": "replicaCount",
+                            "type": [
+                                "integer",
+                                "null"
+                            ]
+                        },
                         "resources": {
                             "description": "ResourceRequirements describes the compute resource requirements.",
                             "properties": {
