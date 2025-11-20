@@ -96,7 +96,7 @@ decode:
     shm_size: "120Gi"
     modelCommand: custom
     command:
-      - /bin/sh
+      - /bin/bash
       - '-c'
     args:
       - /usr/local/bin/run.sh
