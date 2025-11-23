@@ -100,8 +100,9 @@ decode:
     securityContext:
         privileged: true
         capabilities:
-          add: ["IPC_LOCK", "NET_ADMIN"]
-    shm_size: "120Gi"
+          # add: ["IPC_LOCK", "NET_ADMIN"]
+          add: ["IPC_LOCK"]
+    shm_size: "100Gi"
     modelCommand: custom
     command:
       - /bin/bash
@@ -170,7 +171,7 @@ decode:
       - name: LMCACHE_CHUNK_SIZE
         value: "8"
       - name: LMCACHE_MAX_LOCAL_CPU_SIZE
-        value: "20" # Gi
+        value: "180" # Gi
       - name: LMCACHE_USE_EXPERIMENTAL
         value: "true"
       - name: LMCACHE_LOCAL_DISK
@@ -209,11 +210,11 @@ decode:
     resources:
       limits:
         # ephemeral-storage: "200Gi"
-        # memory: "150Gi"
+        memory: "200Gi"
         nvidia.com/gpu: 1
       requests:
         # ephemeral-storage: "200Gi"
-        # memory: "150Gi"
+        memory: "200Gi"
         nvidia.com/gpu: 1
     # disable chart's built-in model volume creation so we can mount the existing PVC
     mountModelVolume: false
