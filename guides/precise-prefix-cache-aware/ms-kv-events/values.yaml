@@ -171,13 +171,13 @@ decode:
       - name: LMCACHE_CHUNK_SIZE
         value: "8"
       - name: LMCACHE_MAX_LOCAL_CPU_SIZE
-        value: "180" # Gi
+        value: "120" # Gi
       - name: LMCACHE_USE_EXPERIMENTAL
         value: "true"
       - name: LMCACHE_LOCAL_DISK
         value: "file:///lmcache"
       - name: LMCACHE_MAX_LOCAL_DISK_SIZE
-        value: "512" # Gi
+        value: "480" # Gi
       - name: MAX_MODEL_LEN
         value: "256"
       # - name: QUANTIZATION
@@ -210,11 +210,11 @@ decode:
     resources:
       limits:
         # ephemeral-storage: "200Gi"
-        memory: "200Gi"
+        memory: "150Gi"
         nvidia.com/gpu: 1
       requests:
         # ephemeral-storage: "200Gi"
-        memory: "200Gi"
+        memory: "150Gi"
         nvidia.com/gpu: 1
     # disable chart's built-in model volume creation so we can mount the existing PVC
     mountModelVolume: false

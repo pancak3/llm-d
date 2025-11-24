@@ -75,7 +75,7 @@ inferenceExtension:
         #         blockSize: 64   
         #         hashSeed: "42"
         # - type: kv-cache-utilization-scorer
-        - type: queue-scorer
+        - type: running-requests-scorer
         - type: max-score-picker
       schedulingProfiles:
         - name: default
@@ -84,7 +84,7 @@ inferenceExtension:
             #   weight: 3.0
             # - pluginRef: kv-cache-utilization-scorer
             #   weight: 2.0
-            - pluginRef: queue-scorer
+            - pluginRef: running-requests-scorer
               weight: 1.0
             - pluginRef: max-score-picker
 
