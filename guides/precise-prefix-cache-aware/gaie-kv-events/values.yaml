@@ -67,26 +67,26 @@ inferenceExtension:
       apiVersion: inference.networking.x-k8s.io/v1alpha1
       kind: EndpointPickerConfig
       plugins:
-        # - type: single-profile-handler
-        # - type: precise-prefix-cache-scorer
-        #   parameters:
-        #     indexerConfig:
-        #       tokenProcessorConfig:
-        #         blockSize: 64   
-        #         hashSeed: "42"
-        # - type: kv-cache-utilization-scorer
-        - type: gpu-utilization-scorer
-        - type: weighted-random-picker
+        - type: single-profile-handler
+        - type: precise-prefix-cache-scorer
+          parameters:
+            indexerConfig:
+              tokenProcessorConfig:
+                blockSize: 8   
+                hashSeed: "42"
+        - type: kv-cache-utilization-scorer
+        - type: running-requests-scorer
+        - type: max-score-picker
       schedulingProfiles:
         - name: default
           plugins:
-            # - pluginRef: precise-prefix-cache-scorer
-            #   weight: 3.0
-            # - pluginRef: kv-cache-utilization-scorer
-            #   weight: 2.0
-            - pluginRef: gpu-utilization-scorer
+            - pluginRef: precise-prefix-cache-scorer
+              weight: 2.0
+            - pluginRef: kv-cache-utilization-scorer
               weight: 1.0
-            - pluginRef: weighted-random-picker
+            - pluginRef: running-requests-scorer
+              weight: 3.0
+            - pluginRef: max-score-picker
 
   # Monitoring configuration for EPP
   monitoring:
