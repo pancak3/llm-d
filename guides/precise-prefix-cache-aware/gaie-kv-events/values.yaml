@@ -75,8 +75,8 @@ inferenceExtension:
         #         blockSize: 64   
         #         hashSeed: "42"
         # - type: kv-cache-utilization-scorer
-        - type: running-requests-scorer
-        - type: max-score-picker
+        - type: gpu-utilization-scorer
+        - type: weighted-random-picker
       schedulingProfiles:
         - name: default
           plugins:
@@ -84,9 +84,9 @@ inferenceExtension:
             #   weight: 3.0
             # - pluginRef: kv-cache-utilization-scorer
             #   weight: 2.0
-            - pluginRef: running-requests-scorer
+            - pluginRef: gpu-utilization-scorer
               weight: 1.0
-            - pluginRef: max-score-picker
+            - pluginRef: weighted-random-picker
 
   # Monitoring configuration for EPP
   monitoring:
