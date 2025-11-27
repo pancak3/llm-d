@@ -56,10 +56,12 @@ inferenceExtension:
       value: "scheduler"
     - name: INFERENCE_DB_PORT
       value: "5432"
+    - name: PYTHONHASHSEED
+      value: "42"
   flags:
     # Log verbosity
     - name: v
-      value: 4
+      value: 1
   
   pluginsConfigFile: "precise-prefix-cache-config.yaml"
   pluginsCustomConfig:
@@ -72,7 +74,7 @@ inferenceExtension:
           parameters:
             indexerConfig:
               tokenProcessorConfig:
-                blockSize: 8   
+                blockSize: 16   
                 hashSeed: "42"
         - type: kv-cache-utilization-scorer
         - type: running-requests-scorer

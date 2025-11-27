@@ -117,6 +117,8 @@ decode:
             fieldPath: metadata.namespace # assumed to be the same as the EPP's
       - name: PYTHONHASHSEED
         value: "42"
+      - name: LMCACHE_PRE_CACHING_HASH_ALGORITHM
+        value: "sha256_cbor"
       - name: POD_IP
         valueFrom:
           fieldRef:
@@ -169,7 +171,9 @@ decode:
       - name: LMCACHE_ENABLE_ASYNC_LOADING
         value: "false"
       - name: LMCACHE_CHUNK_SIZE
-        value: "8"
+        value: "16"
+      - name: VLLM_BLOCK_SIZE
+        value: "16"
       - name: LMCACHE_MAX_LOCAL_CPU_SIZE
         value: "120" # Gi
       - name: LMCACHE_USE_EXPERIMENTAL
