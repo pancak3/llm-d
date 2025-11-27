@@ -61,7 +61,7 @@ inferenceExtension:
   flags:
     # Log verbosity
     - name: v
-      value: 1
+      value: 4
   
   pluginsConfigFile: "precise-prefix-cache-config.yaml"
   pluginsCustomConfig:
@@ -83,11 +83,11 @@ inferenceExtension:
         - name: default
           plugins:
             - pluginRef: precise-prefix-cache-scorer
-              weight: 2.0
+              weight: 1.0
             - pluginRef: kv-cache-utilization-scorer
               weight: 1.0
             - pluginRef: running-requests-scorer
-              weight: 3.0
+              weight: 1.0
             - pluginRef: max-score-picker
 
   # Monitoring configuration for EPP
