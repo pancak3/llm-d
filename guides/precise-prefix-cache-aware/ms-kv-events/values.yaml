@@ -150,8 +150,8 @@ decode:
       - name: INFERENCE_DB_PORT
         value: "5432"
       - name: KV_CONNECTOR
-        # value: "NixlConnector"
-        value: "LMCacheConnectorV1"
+        value: "NixlConnector"
+        # value: "LMCacheConnectorV1"
       - name: HF_HOME
         value: "/model-cache"
       # - name: LMCACHE_CONTROLLER_ADDR_PULL
@@ -165,19 +165,21 @@ decode:
       - name: HF_MODEL
         value: "Qwen/Qwen3-0.6B"
       - name: LMCACHE_ENABLE_CONTROLLER
-        value: "false"
+        value: "False"
       - name: LMCACHE_ENABLE_P2P
-        value: "false"
+        value: "False"
       - name: LMCACHE_ENABLE_ASYNC_LOADING
-        value: "false"
+        value: "False"
       - name: LMCACHE_CHUNK_SIZE
         value: "16"
       - name: VLLM_BLOCK_SIZE
         value: "16"
+      - name: LMCACHE_LOCAL_CPU
+        value: "True"
       - name: LMCACHE_MAX_LOCAL_CPU_SIZE
         value: "120" # Gi
       - name: LMCACHE_USE_EXPERIMENTAL
-        value: "true"
+        value: "True"
       - name: LMCACHE_LOCAL_DISK
         value: "file:///lmcache"
       - name: LMCACHE_MAX_LOCAL_DISK_SIZE
@@ -189,11 +191,15 @@ decode:
       # - name: KV_CACHE_DTYPE
       #   value: "fp8_e4m3"
       - name: MAX_NUM_SEQS
-        value: "512"
+        value: "1024"
+      - name: VLLM_USE_FLASHINFER_SAMPLER
+        value: "1"
+      - name: VLLM_ATTENTION_BACKEND
+        value: "FLASHINFER"
       # - name: MAX_NUM_BATCHED_TOKENS
       #   value: "4096"
       - name: GPU_MEMORY_UTILIZATION
-        value: "0.85"
+        value: "0.82"
       # - name: KV_CACHE_MEMORY
       #   value: "1024000" # 40GB 42949672960
       #### DEBUG ENV VARS
