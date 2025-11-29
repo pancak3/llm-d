@@ -165,21 +165,21 @@ decode:
       - name: HF_MODEL
         value: "Qwen/Qwen3-0.6B"
       - name: LMCACHE_ENABLE_CONTROLLER
-        value: "False"
+        value: "false"
       - name: LMCACHE_ENABLE_P2P
-        value: "False"
+        value: "false"
       - name: LMCACHE_ENABLE_ASYNC_LOADING
-        value: "False"
+        value: "false"
       - name: LMCACHE_CHUNK_SIZE
         value: "16"
       - name: VLLM_BLOCK_SIZE
         value: "16"
       - name: LMCACHE_LOCAL_CPU
-        value: "True"
+        value: "false"
       - name: LMCACHE_MAX_LOCAL_CPU_SIZE
-        value: "120" # Gi
+        value: "30" # Gi
       - name: LMCACHE_USE_EXPERIMENTAL
-        value: "True"
+        value: "false"
       - name: LMCACHE_LOCAL_DISK
         value: "file:///lmcache"
       - name: LMCACHE_MAX_LOCAL_DISK_SIZE
